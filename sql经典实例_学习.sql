@@ -602,3 +602,81 @@ END;
 -- 执行存储过程
 CALL execute_insert();
 
+-- ------------------------------ 第6章 字符串处理--------------------------------------
+-- 遍历字符串中的每个字符
+SELECT SUBSTRING(e.ename,pos,1) AS c
+FROM (SELECT ename FROM emp WHERE ename = 'KING') e,
+	(SELECT id AS pos FROM t10) iter
+WHERE iter.pos <= LENGTH(e.ename);
+-- 关键在于得到位置
+SELECT e.ename,pos
+FROM (SELECT ename FROM emp WHERE ename = 'KING') e,
+	(SELECT id AS pos FROM t10) iter
+WHERE iter.pos <= LENGTH(e.ename);
+
+-- 字符串中嵌入引号，字符串常量中的单引号，用一对单引号表示''，也可以用转义\'
+SELECT 'g''day maate'AS qmarks FROM t1 
+UNION ALL
+SELECT 'beavers\' teeth' AS qmarks FROM t1
+UNION ALL
+SELECT '''' AS qmarks FROM t1;
+
+-- 统计字符出现的次数
+-- '10,CLARK,MANAGER'中出现了多少个逗号，总长度减去除去逗号以后的长度，就是逗号的个数
+SELECT (
+	LENGTH('10,CLARK,MANAGER') 
+	- LENGTH(REPLACE('10,CLARK,MANAGER',',',''))
+	)/LENGTH(',') AS num 
+FROM t1;
+
+-- 统计'LL'出现了几次，这个时候就必须除 LENGTH('LL') 了
+SELECT (LENGTH('HELLO HELLO') 
+	- LENGTH(REPLACE('HELLO HELLO','LL',''))
+	)/LENGTH('LL') AS correct_num ,
+	(LENGTH('HELLO HELLO') 
+	- LENGTH(REPLACE('HELLO HELLO','LL',''))
+	) AS incorrect_num
+FROM t1;
+
+-- 删除所有的元音字母和数字0
+SELECT ename,sal FROM emp;
+SELECT ename,
+	REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(ename,'U',''),'O',''),'I',''),'E',''),'A','') AS ename1,
+	sal,
+	REPLACE(sal,0,'') AS sal1
+FROM emp;
+
+-- 分离数字和字符混合数据
+SELECT CONCAT(ename,sal) AS data
+FROM emp;
+-- mysql 没有 translate函数
+
+-- 判断只含有字母和数字的字符串
+DROP VIEW IF EXISTS view_number_letter;
+CREATE VIEW view_number_letter AS
+SELECT ename AS data
+FROM emp
+WHERE deptno = 10
+UNION ALL
+SELECT CONCAT(ename,',$',CAST(sal AS CHAR(4)),'.00') AS data
+FROM emp
+WHERE deptno = 20
+UNION ALL
+SELECT CONCAT(ename,CAST(deptno AS CHAR(4))) AS data
+FROM emp
+WHERE deptno = 30;
+SELECT * FROM view_number_letter;
+-- 使用正则  ^取反（匹配除了表达式内的情况）
+-- WHERE data REGEXP '[^0-9a-zA-Z]' = 0 的意思是，执行非字母和数字的匹配，返回结果为false的情况
+-- 也就是返回只包含数字和字母的匹配
+SELECT data FROM view_number_letter WHERE data REGEXP '[^0-9a-zA-Z]' = 0;
+
+-- 根据子字符串排序
+SELECT * FROM emp ORDER BY SUBSTRING(job,LENGTH(job)-2,3)
+
+-- 创建分隔列表，将竖排列的数据转为横排列的数据,GROUP_CONCAT是一个聚合函数
+SELECT deptno,GROUP_CONCAT(ename ORDER BY empno SEPARATOR ',') AS emps
+FROM emp
+GROUP BY deptno;
+
+-- 将分隔数据转换为多值用在in列表中

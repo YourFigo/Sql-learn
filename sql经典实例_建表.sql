@@ -1,3 +1,4 @@
+DROP TABLE IF EXISTS emp;
 CREATE TABLE EMP
        (EMPNO integer NOT NULL,
         ENAME VARCHAR(10),
