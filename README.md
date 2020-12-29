@@ -1,7 +1,15 @@
 # Sql-learn
 
-SQL经典实例全书建表语句以及全书代码
+## SQL经典实例(SQL Cookbook)
 
-2018年版
+2018年版，Mysql版本代码
 
-Mysql版本
+全书建表语句
+
+[全书建表语句](sql经典实例_建表.sql)
+
+全书代码
+
+[全书代码](sql经典实例_学习.sql)
+
+![image](sql经典实例_书封面.jpg)
