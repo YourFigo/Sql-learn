@@ -973,3 +973,75 @@ SELECT
 FROM view_bank_water v1
 
 -- ------------------------------ 第8章 日期运算--------------------------------------
+-- 年月日加减法 
+-- CLARK 入职（HIREDATE）前后五天，入职前后五个月，入职千户五年的日期
+-- 使用 INTERVAL 关键字指定要加上或者减去的时间单位
+SELECT hiredate,
+	hiredate - INTERVAL 5 DAY AS hd_minus_5D,
+	hiredate + INTERVAL 5 DAY AS hd_plus_5D,
+	hiredate - INTERVAL 5 MONTH AS hd_minus_5M,
+	hiredate + INTERVAL 5 MONTH AS hd_plus_5M,
+	hiredate - INTERVAL 5 YEAR AS hd_minus_5Y,
+	hiredate + INTERVAL 5 YEAR AS hd_plus_5Y
+FROM emp
+WHERE ename = 'CLARK';
+
+-- 计算两个日期之间的差距
+SELECT DAY(hd_ward) - DAY(hd_allen) 
+FROM 
+	(
+	SELECT hiredate AS hd_ward FROM emp WHERE ename = 'WARD'
+	) x,
+	(
+	SELECT hiredate AS hd_allen FROM emp WHERE ename = 'ALLEN'
+	) y ;
+-- 或者使用datediff函数
+SELECT DATEDIFF(hd_ward,hd_allen)
+FROM 
+	(
+	SELECT hiredate AS hd_ward FROM emp WHERE ename = 'WARD'
+	) x,
+	(
+	SELECT hiredate AS hd_allen FROM emp WHERE ename = 'ALLEN'
+	) y ;
+
+-- 计算两个日期之间的工作日天数，并且这两天也要算进去,开始和结束日期分别是BLAKE和JONES的hiredate
+SELECT ename,hiredate FROM emp WHERE ename IN ('BLAKE','JONES');
+-- SELECT x.*,t100.*,DATE_ADD(hd_jones,INTERVAL t100.id - 1 DAY),DATE_FORMAT(DATE_ADD(hd_jones,INTERVAL t100.id - 1 DAY),'%a')
+-- DATE_ADD(hd_jones,INTERVAL t100.id - 1 DAY) 可以得到开始日期+n天后的日期
+-- DATE_FORMAT(DATE_ADD(hd_jones,INTERVAL t100.id - 1 DAY),'%a') 可以得到某个日期是周几('%a')
+SELECT 
+	SUM(
+		CASE WHEN 
+			DATE_FORMAT(
+				DATE_ADD(hd_jones,INTERVAL t100.id - 1 DAY),'%a') 
+			IN ('Sat','Sun') 
+		THEN 0 
+		ELSE 1 
+		END
+	) AS days
+FROM
+	(
+	SELECT 
+		MAX(CASE WHEN ename = 'BLAKE' THEN hiredate END) AS hd_blake,
+		MAX(CASE WHEN ename = 'JONES' THEN hiredate END) AS hd_jones 
+	FROM emp 
+	WHERE ename IN ('BLAKE','JONES')
+	) x,
+	t100
+WHERE t100.id <= DATEDIFF(hd_blake,hd_jones) + 1;
+
+-- 计算两个日期之间相差的年数或者月数
+SELECT MIN(hiredate) AS min_hd,MAX(hiredate) AS max_hd FROM emp;
+SELECT mnth,mnth/12
+FROM (
+	SELECT 
+		(YEAR(max_hd) - YEAR(min_hd))*12 + 
+		MONTH(max_hd) - MONTH(min_hd) 
+		AS mnth
+	FROM (
+		SELECT MIN(hiredate) AS min_hd,MAX(hiredate) AS max_hd FROM emp
+		) d
+	) m;
+	
+-- 计算两个日期之间相差的秒数、分钟数和小时数
