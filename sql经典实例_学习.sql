@@ -935,3 +935,41 @@ WHERE e.deptno = d.deptno AND e.deptno = 20
 GROUP BY e.sal;
 
 -- 计算百分比
+-- 计算某一列的某部分值占本列值总和的百分比
+SELECT SUM(CASE WHEN deptno = 10 THEN sal END) AS d10,
+	SUM(sal) AS total,
+	(SUM(CASE WHEN deptno = 10 THEN sal END) / SUM(sal) * 100) AS pct 
+FROM emp;
+
+-- 去掉最大值和最小值
+SELECT AVG(sal)
+FROM emp
+WHERE sal NOT IN(
+	(SELECT MIN(sal) FROM emp),
+	(SELECT MAX(sal) FROM emp)
+	);
+
+-- 修改累计值
+-- 一个流水表，amt为金额，trx为交易类型，PR表示支出，PY表示存入
+DROP VIEW IF EXISTS view_bank_water;
+CREATE VIEW view_bank_water(id,amt,trx) AS
+SELECT 1,100,'PR' FROM t1 UNION ALL
+SELECT 2,100,'PR' FROM t1 UNION ALL
+SELECT 3,50,'PY' FROM t1 UNION ALL
+SELECT 4,100,'PR' FROM t1 UNION ALL
+SELECT 5,200,'PY' FROM t1 UNION ALL
+SELECT 6,50,'PY' FROM t1;
+SELECT * FROM view_bank_water;
+-- 根据流水，显示每次交易完的余额
+-- 如果是PR加上当前amt，如果是PY减去当前amt
+SELECT 
+	(CASE WHEN v1.trx = 'PY' THEN 'PAYMENT' ELSE 'PURCHASE' END) AS trx_type,
+	v1.amt,
+	(
+		SELECT SUM(CASE WHEN v2.trx = 'PY' THEN -v2.amt ELSE v2.amt END) 
+		FROM view_bank_water v2 
+		WHERE v2.id <= v1.id
+	) AS balance
+FROM view_bank_water v1
+
+-- ------------------------------ 第8章 日期运算--------------------------------------
