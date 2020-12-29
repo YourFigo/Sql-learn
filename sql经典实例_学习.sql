@@ -1,3 +1,17 @@
+/*
+sql语句关键字执行顺序
+-- 1、from子句组装来自不同数据源的数据
+-- 1.2、join
+-- 1.3、on
+-- 2、where子句基于指定的条件对记录行进行筛选
+-- 3、group by子句将数据划分为多个分组
+-- 4、使用聚集函数进行计算 
+-- 5、使用having子句筛选分组
+-- 6、计算所有的表达式 
+-- 7、select 的字段
+-- 8、使用order by对结果集进行排序
+-- 9、limit 页num,页size
+*/
 -- ------------------------------ 第1章 查询 --------------------------------------
 -- cocncat() 将多列值合并为一列
 SELECT concat(ename, ' WORK AS A ', job) as msg
@@ -775,4 +789,149 @@ SELECT deptno,AVG(sal) FROM emp GROUP BY deptno;
 SELECT MAX(sal),MIN(sal) FROM emp;
 -- 分部门的最值
 SELECT deptno,MAX(sal),MIN(sal) FROM emp GROUP BY deptno;
+-- 看一下null的情况
 SELECT deptno,comm FROM emp WHERE deptno IN (10,30) ORDER BY 1;
+SELECT MAX(comm),MIN(comm) FROM emp;
+SELECT deptno,MAX(comm),MIN(comm) FROM emp GROUP BY deptno;
+
+-- 求薪资总和
+SELECT SUM(sal) FROM emp;
+-- 求部门薪资总和
+SELECT deptno,SUM(sal) FROM emp GROUP BY deptno;
+-- sum会自动忽略null，如果需要处理为实际意义的值，可以借助coalesce
+SELECT deptno,comm FROM emp WHERE deptno IN (10,30) ORDER BY 1;
+SELECT deptno,SUM(comm) FROM emp WHERE deptno IN (10,30) GROUP BY deptno;
+SELECT deptno,COALESCE(SUM(comm),0) FROM emp WHERE deptno IN (10,30) GROUP BY deptno;
+
+-- 计算某列中值得个数
+SELECT COUNT(*) FROM emp;
+SELECT deptno,COUNT(*) FROM emp GROUP BY deptno;
+
+-- 使用列名作为count的参数时，count会忽略null，如果使用*或者常量参数时就会包含null
+SELECT deptno,comm FROM emp;
+SELECT COUNT(*),COUNT(1),COUNT(2),COUNT('HELLO'),COUNT(deptno),COUNT(comm) FROM emp;
+SELECT deptno,COUNT(*) FROM emp GROUP BY deptno;
+
+-- 针对某一列进行累计求和
+-- 求员工工资的累计额
+-- WHERE a.empno <= b.empno 我感觉这么做的前提条件是empno是升序有序的
+SELECT empno,ename,sal,
+	(SELECT SUM(a.sal) FROM emp a WHERE a.empno <= b.empno) AS running_total
+FROM emp b;
+-- from的子查询中先对empno排序，保证empno整体有序
+SELECT empno,ename,sal,
+	(SELECT SUM(y.sal) FROM emp y WHERE y.empno <= x.empno) AS running_total
+FROM (SELECT empno,ename,sal FROM emp ORDER BY empno) x;
+
+-- 累计乘积  
+SELECT empno,ename,sal,
+	(SELECT 
+		EXP(SUM(LN(y.sal))) 
+	FROM emp y 
+	WHERE y.empno <= x.empno 
+		AND y.deptno = x.deptno
+	) AS running_prod
+FROM (
+	SELECT empno,ename,sal,deptno 
+	FROM emp 
+	ORDER BY empno
+	) x
+WHERE x.deptno = 10;
+-- 借助于exp(ln(x)) = x, xy = exp(ln(x) + ln(y))
+SELECT EXP(LN(2) + LN(3)), 2*3;
+
+-- 累计差
+SELECT empno,ename,sal,
+	(SELECT 
+		CASE WHEN x.empno = MIN(y.empno) THEN x.sal ELSE -x.sal END
+	FROM emp y 
+	WHERE y.empno <= x.empno 
+		AND y.deptno = x.deptno
+	) AS running_minus
+FROM (
+	SELECT empno,ename,sal,deptno 
+	FROM emp 
+	ORDER BY empno
+	) x
+WHERE x.deptno = 10;
+-- 把上面的查询作为from子查询做累计求和操作
+SELECT empno,ename,sal,
+	(SELECT SUM(b.running_minus) FROM (
+		SELECT empno,ename,sal,
+			(SELECT 
+				CASE WHEN x.empno = MIN(y.empno) THEN x.sal ELSE -x.sal END
+			FROM emp y 
+			WHERE y.empno <= x.empno 
+				AND y.deptno = x.deptno
+			) AS running_minus
+		FROM (
+			SELECT empno,ename,sal,deptno 
+			FROM emp 
+			ORDER BY empno
+			) x
+		WHERE x.deptno = 10
+		) b 
+	WHERE b.empno <= a.empno) AS running_diff
+FROM (
+	SELECT empno,ename,sal,
+		(SELECT 
+			CASE WHEN x.empno = MIN(y.empno) THEN x.sal ELSE -x.sal END
+		FROM emp y 
+		WHERE y.empno <= x.empno 
+			AND y.deptno = x.deptno
+		) AS running_minus
+	FROM (
+		SELECT empno,ename,sal,deptno 
+		FROM emp 
+		ORDER BY empno
+		) x
+	WHERE x.deptno = 10
+	) a;
+-- 为了方便，创建一个视图并且为第一条数据创建标记
+DROP VIEW IF EXISTS view_running_diff;
+CREATE VIEW view_running_diff AS
+	SELECT empno,ename,sal,
+		(SELECT 
+			CASE WHEN x.empno = MIN(y.empno) THEN '库存' ELSE '出库' END
+		FROM emp y 
+		WHERE y.empno <= x.empno 
+			AND y.deptno = x.deptno
+		) AS type
+	FROM (
+		SELECT empno,ename,sal,deptno 
+		FROM emp 
+		ORDER BY empno
+		) x
+	WHERE x.deptno = 10;
+-- 对视图进行累计求差
+SELECT empno,ename,sal,
+	(CASE WHEN x.type = '库存' THEN x.sal ELSE -x.sal END) AS running_minus,
+	(SELECT SUM(CASE WHEN y.type = '库存' THEN y.sal ELSE -y.sal END) 
+		FROM view_running_diff y WHERE y.empno <= x.empno) AS running_diff
+FROM view_running_diff x;
+
+-- 计算众数
+-- >= all  相对于 大于子查询中的最大值
+SELECT sal
+FROM emp
+WHERE deptno = 20
+GROUP BY sal
+HAVING COUNT(*) >= ALL(SELECT COUNT(*) FROM emp WHERE deptno = 20 GROUP BY sal);
+
+-- 计算中位数
+SELECT sal FROM emp WHERE deptno = 20 ORDER BY sal;
+SELECT AVG(sal) FROM (
+	SELECT e.sal
+	FROM emp e,emp d
+	WHERE e.deptno = d.deptno AND e.deptno = 20
+	GROUP BY e.sal
+	HAVING SUM(CASE WHEN e.sal = d.sal THEN 1 ELSE 0 END) >= ABS(SUM(SIGN(e.sal - d.sal)))
+	) x;
+-- ABS(SUM(SIGN(e.sal - d.sal))) 越小说明这个sal越在中间，因为比它大的数和比它小的数基本相等，
+-- 绝对值要不为0，要不为1，为0时证明这个数在最中间，为1时肯定有两个这样的数，这时就取了一个平均值作为中位数
+SELECT e.sal,SUM(CASE WHEN e.sal = d.sal THEN 1 ELSE 0 END) AS cnt1,ABS(SUM(SIGN(e.sal - d.sal))) AS cnt2
+FROM emp e,emp d
+WHERE e.deptno = d.deptno AND e.deptno = 20
+GROUP BY e.sal;
+
+-- 计算百分比
