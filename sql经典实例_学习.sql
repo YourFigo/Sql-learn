@@ -756,3 +756,23 @@ FROM (
 GROUP BY num_list.ip;
 
 -- ------------------------------ 第7章 数值处理--------------------------------------
+-- 平均值 avg()
+CREATE TABLE t2 (sal INTEGER);
+INSERT INTO t2 VALUES (10);
+INSERT INTO t2 VALUES (20);
+INSERT INTO t2 VALUES (NULL);
+-- avg() 函数会自动忽略null值，有几个null值平均时就会少几个分母
+SELECT AVG(sal) FROM t2;
+SELECT DISTINCT 30/2 FROM t2;
+-- 如果想要null值的行参与运算，需要使用coalesce()函数
+SELECT AVG(COALESCE(sal,0)) FROM t2;
+SELECT DISTINCT 30/3 FROM t2;
+-- 求部门的平均值
+SELECT deptno,AVG(sal) FROM emp GROUP BY deptno;
+
+-- 最大最小值 max() min()，会自动忽略NULL值
+-- 求所有记录的最值不需要使用分组
+SELECT MAX(sal),MIN(sal) FROM emp;
+-- 分部门的最值
+SELECT deptno,MAX(sal),MIN(sal) FROM emp GROUP BY deptno;
+SELECT deptno,comm FROM emp WHERE deptno IN (10,30) ORDER BY 1;
