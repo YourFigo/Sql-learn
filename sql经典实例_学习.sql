@@ -680,3 +680,79 @@ FROM emp
 GROUP BY deptno;
 
 -- 将分隔数据转换为多值用在in列表中
+SELECT empno,ename,sal,deptno
+FROM emp
+WHERE empno IN 
+	(
+	SELECT SUBSTRING_INDEX(SUBSTRING_INDEX(list.vals,',',iter.pos),',',-1) AS empno
+	FROM (SELECT id AS pos FROM t10) iter,(SELECT '7654,7689,7782,7788' AS vals FROM t1) list
+	WHERE iter.pos <= (LENGTH(list.vals) - LENGTH(REPLACE(list.vals,',',''))) + 1
+	) x;
+/*
+分析一下
+WHERE iter.pos <= (LENGTH(list.vals) - LENGTH(REPLACE(list.vals,',',''))) + 1 用于得到被逗号分隔后的数值个数
+SUBSTRING_INDEX(list.vals,',',iter.pos) 得到通过','分隔的list.vals，并且只返回从1开始的iter.pos个值(正数的话)
+*/
+SELECT list.vals,iter.pos,
+	SUBSTRING_INDEX(list.vals,',',iter.pos),
+	SUBSTRING_INDEX(SUBSTRING_INDEX(list.vals,',',iter.pos),',',-1)
+FROM (SELECT id AS pos FROM t10) iter,(SELECT '7654,7689,7782,7788' AS vals FROM t1) list
+WHERE iter.pos <= (LENGTH(list.vals) - LENGTH(REPLACE(list.vals,',',''))) + 1;
+-- 正数：分隔后从开头位置取几个，负数：分隔后从结尾位置取几个
+SELECT substring_index('www.baidu.com','.',1) FROM t1;
+SELECT SUBSTRING_INDEX('www.baidu.com','.',2) FROM t1;
+SELECT SUBSTRING_INDEX('www.baidu.com','.',-1) FROM t1;
+SELECT SUBSTRING_INDEX('www.baidu.com','.',-2) FROM t1;
+-- 取除了开头结尾的某段的话，需要两次SUBSTRING_INDEX操作
+SELECT SUBSTRING_INDEX(SUBSTRING_INDEX('www.baidu.com','.',2),'.',-1) FROM t1;
+SELECT SUBSTRING_INDEX(SUBSTRING_INDEX('www.baidu.com','.',-2),'.',1) FROM t1;
+
+-- 对每个值，按照字母顺序重排列
+-- 每个ename生成 1*length(ename) 个笛卡尔积，总共生成 count(ename)*length(ename)个笛卡尔积
+SELECT ename,SUBSTRING(e.ename,iter.pos,1) c 
+FROM emp e,(SELECT id AS pos FROM t10) iter 
+WHERE iter.pos <= LENGTH(e.ename);
+-- 然后聚合重排后的c
+SELECT ename AS old_ename,GROUP_CONCAT(c ORDER BY c SEPARATOR '') AS new_ename
+FROM (
+	SELECT ename,SUBSTRING(e.ename,iter.pos,1) c 
+	FROM emp e,(SELECT id AS pos FROM t10) iter 
+	WHERE iter.pos <= LENGTH(e.ename)
+	) x
+GROUP BY x.ename
+
+-- 解析ip地址 '111.22.3.4'，使用 SUBSTRING_INDEX(str,delim,count)
+SELECT '111.22.3.4' AS ip FROM t1;
+-- 将ip切分放入行中
+SELECT *
+FROM (
+	SELECT iter.pos,list.ip,SUBSTRING_INDEX(SUBSTRING_INDEX(list.ip,'.',iter.pos),'.',-1) AS num
+	FROM (SELECT id AS pos FROM t10) iter,(SELECT '111.22.3.4' AS ip FROM t1) list
+	WHERE iter.pos <= LENGTH(list.ip) - LENGTH(REPLACE(list.ip,'.','')) +1
+	) num_list;
+-- 使用case和group将多行数据转为多列数据
+SELECT
+	MAX(CASE num_list.pos WHEN 1 THEN num_list.num ELSE NULL END) AS a,
+	MAX(CASE num_list.pos WHEN 2 THEN num_list.num ELSE NULL END) AS b,
+	MAX(CASE num_list.pos WHEN 3 THEN num_list.num ELSE NULL END) AS c,
+	MAX(CASE num_list.pos WHEN 4 THEN num_list.num ELSE NULL END) AS d
+FROM (
+	SELECT iter.pos,list.ip,SUBSTRING_INDEX(SUBSTRING_INDEX(list.ip,'.',iter.pos),'.',-1) AS num
+	FROM (SELECT id AS pos FROM t10) iter,(SELECT '111.22.3.4' AS ip FROM t1) list
+	WHERE iter.pos <= LENGTH(list.ip) - LENGTH(REPLACE(list.ip,'.','')) +1
+	) num_list
+GROUP BY num_list.ip;
+-- case when的两种不同用法
+SELECT
+	MAX(CASE WHEN num_list.pos = 1 THEN num_list.num ELSE NULL END) AS a,
+	MAX(CASE WHEN num_list.pos = 2 THEN num_list.num ELSE NULL END) AS b,
+	MAX(CASE WHEN num_list.pos = 3 THEN num_list.num ELSE NULL END) AS c,
+	MAX(CASE WHEN num_list.pos = 4 THEN num_list.num ELSE NULL END) AS d
+FROM (
+	SELECT iter.pos,list.ip,SUBSTRING_INDEX(SUBSTRING_INDEX(list.ip,'.',iter.pos),'.',-1) AS num
+	FROM (SELECT id AS pos FROM t10) iter,(SELECT '111.22.3.4' AS ip FROM t1) list
+	WHERE iter.pos <= LENGTH(list.ip) - LENGTH(REPLACE(list.ip,'.','')) +1
+	) num_list
+GROUP BY num_list.ip;
+
+-- ------------------------------ 第7章 数值处理--------------------------------------
