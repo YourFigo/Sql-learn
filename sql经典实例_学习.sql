@@ -1095,3 +1095,169 @@ FROM (
 	) x;
 	
 -- ------------------------------ 第9章 日期处理--------------------------------------
+-- 判断某一年是否是闰年  查找这一年2月的最后一天
+SELECT 
+	DAY(
+		LAST_DAY(
+			DATE_ADD(
+				DATE_ADD(
+					DATE_ADD(CURRENT_DATE,
+						INTERVAL -DAYOFYEAR(CURRENT_DATE) DAY),
+				INTERVAL 1 DAY),
+			INTERVAL 1 MONTH)
+		)
+	) dy 
+FROM t1;
+
+-- 计算一年有多少天
+-- DAYOFYEAR 今天是今年的第几天
+SELECT CURRENT_DATE,DAYOFYEAR(CURRENT_DATE) FROM t1;
+SELECT DATEDIFF((curr_year_start + INTERVAL 1 YEAR),curr_year_start)
+FROM (
+	SELECT ADDDATE(CURRENT_DATE,-DAYOFYEAR(CURRENT_DATE)+1) AS curr_year_start
+	FROM t1
+	) x;
+	
+-- 从给定日期提取年、月、日、时、分、秒
+SELECT 
+	DATE_FORMAT(CURRENT_TIMESTAMP,'%Y') AS yr,
+	DATE_FORMAT(CURRENT_TIMESTAMP,'%m') AS mon,
+	DATE_FORMAT(CURRENT_TIMESTAMP,'%d') AS dy,
+	DATE_FORMAT(CURRENT_TIMESTAMP,'%k') AS hr,
+	DATE_FORMAT(CURRENT_TIMESTAMP,'%i') AS min,
+	DATE_FORMAT(CURRENT_TIMESTAMP,'%s') AS sec
+FROM t1;
+
+-- 当前月份的第一天和最后一天
+SELECT
+	DATE_ADD(CURRENT_DATE,INTERVAL -DAY(CURRENT_DATE)+1 DAY) AS first_day,
+	LAST_DAY(CURRENT_DATE) AS last_day
+FROM t1;
+
+-- 列出今年的每一个星期五的日期
+-- YEAR(ADDDATE(x.dy,INTERVAL t500.id-1 DAY)) = x.yr 用于判定是今年
+SELECT yr,DAYNAME(yr)
+FROM (
+	SELECT ADDDATE(x.dy,INTERVAL t500.id-1 DAY) yr
+	FROM (
+		SELECT dy,YEAR(dy) yr
+		FROM (
+			SELECT 
+				ADDDATE(
+					ADDDATE(CURRENT_DATE,
+						INTERVAL -DAYOFYEAR(CURRENT_DATE) DAY),
+					INTERVAL 1 DAY
+				) AS dy
+			FROM t1
+			) tmp1
+		) x,
+		t500
+	WHERE YEAR(ADDDATE(x.dy,INTERVAL t500.id-1 DAY)) = x.yr
+	) tmp2
+WHERE DAYNAME(yr) = 'Friday';
+
+-- 找出当前月份的第一个星期一和最后一个星期一
+-- SIGN(DAYOFWEEK(dy)-2) 对于 0 的话，意味着这一天为星期一 DAYOFWEEK的顺序为 日一二...
+SELECT first_monday,
+	CASE MONTH(ADDDATE(first_monday,28))
+		WHEN mth THEN ADDDATE(first_monday,28)
+		ELSE ADDDATE(first_monday,21)
+	END AS last_monday
+FROM (
+	SELECT dy,DAYOFWEEK(dy),SIGN(DAYOFWEEK(dy)-2),
+		CASE SIGN(DAYOFWEEK(dy)-2)
+			WHEN 0 THEN dy
+			WHEN -1 THEN ADDDATE(dy,ABS(DAYOFWEEK(dy)-2))
+			WHEN 1 THEN ADDDATE(dy,(7-(DAYOFWEEK(dy)-2)))
+		END AS first_monday,
+		mth
+	FROM (
+		SELECT
+			ADDDATE(ADDDATE(CURRENT_DATE,-DAY(CURRENT_DATE)),1) dy,
+			MONTH(CURRENT_DATE) mth
+		FROM t1
+		) x
+	) y;
+
+-- 生成日历
+-- DATE_FORMAT(y.dy,'%w') 的顺序为 一二三...六日
+-- 最后使用周数做了一个行转列
+SELECT 
+	MAX(CASE z.dw WHEN 2 THEN z.dm END) AS Mo,
+	MAX(CASE z.dw WHEN 3 THEN z.dm END) AS Tu,
+	MAX(CASE z.dw WHEN 4 THEN z.dm END) AS We,
+	MAX(CASE z.dw WHEN 5 THEN z.dm END) AS Th,
+	MAX(CASE z.dw WHEN 6 THEN z.dm END) AS Fr,
+	MAX(CASE z.dw WHEN 7 THEN z.dm END) AS Sa,
+	MAX(CASE z.dw WHEN 1 THEN z.dm END) AS Su
+FROM (
+	SELECT 
+		DATE_FORMAT(y.dy,'%u') AS wk,
+		DATE_FORMAT(y.dy,'%d') AS dm,
+		DATE_FORMAT(y.dy,'%w')+1 AS dw
+	FROM (
+		SELECT ADDDATE(x.dy,t100.id-1) dy,
+			mth
+		FROM (
+			SELECT ADDDATE(CURRENT_DATE,-DAYOFMONTH(CURRENT_DATE)+1) AS dy,
+				DATE_FORMAT(ADDDATE(CURRENT_DATE,-DAYOFMONTH(CURRENT_DATE)+1),'%m') AS mth
+			FROM t1
+			) x,
+			t100
+		WHERE t100.id <= 31
+			AND DATE_FORMAT(ADDDATE(x.dy,t100.id-1),'%m') = x.mth
+		) y
+	) z
+GROUP BY z.wk
+ORDER BY z.wk
+
+-- 列出一年中的每个季度的开始日期和结束日期
+SELECT 
+	QUARTER(ADDDATE(dy,-1)) AS QTR,
+	DATE_ADD(dy,INTERVAL -3 MONTH) AS Q_start,
+	ADDDATE(dy,-1) Q_end
+FROM (
+	SELECT DATE_ADD(dy,INTERVAL (3*id) MONTH) dy
+	FROM (
+		SELECT id,ADDDATE(CURRENT_DATE,-DAYOFYEAR(CURRENT_DATE)+1) dy
+		FROM t500
+		WHERE id <= 4
+		) x
+	) y;
+	
+-- 1980-1983年每个月份新入职的员工人数
+-- 数据不全，只有一半数据
+SELECT z.mth,COUNT(e.hiredate) AS num_hired
+FROM (
+	SELECT DATE_ADD(min_hd,INTERVAL t500.id-1 MONTH) mth
+	FROM (
+		SELECT min_hd,DATE_ADD(max_hd,INTERVAL 11 MONTH) max_hd
+		FROM (
+			SELECT 
+				ADDDATE(MIN(hiredate),-DAYOFYEAR(MIN(hiredate))+1) min_hd,
+				ADDDATE(MAX(hiredate),-DAYOFYEAR(MAX(hiredate))+1) max_hd
+			FROM emp
+			) x
+		) y,
+		t500
+	WHERE DATE_ADD(min_hd,INTERVAL t500.id-1 MONTH) <= max_hd
+	) z
+LEFT JOIN emp e
+ON (z.mth = ADDDATE(DATE_ADD(LAST_DAY(e.hiredate),INTERVAL -1 MONTH),1))
+GROUP BY z.mth;
+
+-- 依据特定时间单位检索数据
+SELECT ename 
+FROM emp
+WHERE MONTHNAME(hiredate) IN ('February','December')
+	OR DAYNAME(hiredate) = 'Tuesday';
+	
+-- 查相同月份和相同星期入职的员工
+SELECT
+	CONCAT(a.ename,' was hired on the same month and weekday as ',b.ename) AS msg
+FROM emp a,emp b
+WHERE DATE_FORMAT(a.hiredate,'%w%M') = DATE_FORMAT(b.hiredate,'%w%M')
+	AND a.empno < b.empno
+ORDER BY a.ename;
+
+-- ------------------------------ 第10章 区间查询--------------------------------------
