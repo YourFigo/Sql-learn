@@ -1045,3 +1045,53 @@ FROM (
 	) m;
 	
 -- 计算两个日期之间相差的秒数、分钟数和小时数
+SELECT 
+	DATEDIFF(hd_blake,hd_jones) * 24 AS hr,
+	DATEDIFF(hd_blake,hd_jones) * 24 * 60 AS min,
+	DATEDIFF(hd_blake,hd_jones) * 24 * 60 * 60 AS sec
+FROM (
+	SELECT 
+		MAX(CASE WHEN ename = 'BLAKE' THEN hiredate END) AS hd_blake,
+		MAX(CASE WHEN ename = 'JONES' THEN hiredate END) AS hd_jones 
+	FROM emp 
+	) x;
+	
+-- 查今年有几个星期一
+-- CAST(value AS type) 将value转为type类型
+SELECT 
+	DATE_FORMAT(
+		DATE_ADD(
+			CAST(CONCAT(YEAR(CURRENT_DATE),'-01-01') AS date),
+			INTERVAL t500.id-1 DAY),
+		'%W') AS day,
+	COUNT(*) AS cnt
+FROM t500
+WHERE t500.id <= 
+	(
+	DATEDIFF(
+		CAST(CONCAT(YEAR(CURRENT_DATE)+1,'-01-01') AS date),
+		CAST(CONCAT(YEAR(CURRENT_DATE),'-01-01') AS date)
+		)
+	)
+GROUP BY 
+	DATE_FORMAT(
+		DATE_ADD(
+			CAST(CONCAT(YEAR(CURRENT_DATE),'-01-01') AS date),
+			INTERVAL t500.id-1 DAY),
+		'%W')
+HAVING day = 'Monday';
+
+-- 计算当前记录和下一条记录之间的日期差
+-- 计算deptno=10的员工入职分别相差多少天，比curr大的hd里面最小的一个就是next_hd_more_curr
+SELECT x.*,DATEDIFF(x.hiredate,next_hd_more_curr)
+FROM (
+	SELECT e.deptno,e.ename,e.hiredate,(
+		SELECT COALESCE(MIN(d.hiredate),d.hiredate) 
+		FROM emp d 
+		WHERE deptno = 10 AND d.hiredate > e.hiredate
+		) AS next_hd_more_curr
+	FROM emp e
+	WHERE deptno = 10
+	) x;
+	
+-- ------------------------------ 第9章 日期处理--------------------------------------
