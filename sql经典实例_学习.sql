@@ -10,7 +10,7 @@ sql语句关键字执行顺序
 -- 6、计算所有的表达式 
 -- 7、select 的字段
 -- 8、使用order by对结果集进行排序
--- 9、limit 页num,页size
+-- 9、limit 
 */
 -- ------------------------------ 第1章 查询 --------------------------------------
 -- cocncat() 将多列值合并为一列
@@ -1321,3 +1321,64 @@ FROM (
 	FROM view_project a
 	) x
 GROUP BY proj_grp;
+
+-- ------------------------------ 第11章 高级查询--------------------------------------
+-- 结果集分页
+-- limit [num,]size = limit size [offset num] 显示size条结果，跳过num行
+SELECT sal FROM emp ORDER BY sal;
+SELECT sal FROM emp ORDER BY sal LIMIT 5 OFFSET 0;
+SELECT sal FROM emp ORDER BY sal LIMIT 5 OFFSET 2;
+SELECT sal FROM emp ORDER BY sal LIMIT 2,5;
+-- 当num是size的整数倍时，就可以实现分页了
+SELECT sal FROM emp ORDER BY sal LIMIT 0,5;
+SELECT sal FROM emp ORDER BY sal LIMIT 5,5;
+SELECT sal FROM emp ORDER BY sal LIMIT 10,5;
+
+-- 跳过N行记录，只返回1、3、5...行
+SELECT
+	x.ename
+FROM (
+	SELECT 
+		ename,
+		(
+			SELECT COUNT(*) 
+			FROM emp b 
+			WHERE b.ename <= a.ename
+		) AS rn
+	FROM emp a
+	) x
+WHERE MOD(x.rn,2) = 1;
+
+-- 在外连接on条件中使用多个条件进行限定
+-- 要部门10和20的员工名和部门信息，以及部门30和40的部门信息，不要部门30和40的员工名
+SELECT e.ename,d.deptno,d.dname,d.loc
+FROM dept d LEFT JOIN emp e
+ON d.deptno = e.deptno
+	AND (e.deptno = 10 OR e.deptno = 20);
+	
+-- 提取最靠前的n行记录
+-- 标量子查询中得到了比当前记录大（或相等）的数据个数，如果为1，证明当前数据最大，没有其他数比当前数大
+-- count(distinct col) 值相同则是并列的
+SELECT ename,sal,rnk
+FROM (
+	SELECT 
+		a.sal,
+		a.ename,
+		(
+			SELECT COUNT(DISTINCT b.sal) 
+			FROM emp b 
+			WHERE a.sal <= b.sal
+		) AS rnk
+	FROM emp a 
+	) x
+WHERE rnk <= 5
+ORDER BY rnk;
+
+-- 查询最大值和最小值
+SELECT *
+FROM emp
+WHERE sal IN 
+	(
+	(SELECT MIN(sal) FROM emp),
+	(SELECT MAX(sal) FROM emp)
+	);
