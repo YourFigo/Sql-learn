@@ -1261,3 +1261,63 @@ WHERE DATE_FORMAT(a.hiredate,'%w%M') = DATE_FORMAT(b.hiredate,'%w%M')
 ORDER BY a.ename;
 
 -- ------------------------------ 第10章 区间查询--------------------------------------
+-- 计算同一组的行之间的差值，同一部门丽不同员工之间的工资差距
+-- 差距指的是，当前员工sal和入职日期紧随其后的那个员工sal之间的差值
+-- 先取出下一个日期 x.hiredate > e.hiredate 如果以日期为条件，取出下一个sal
+-- 这里要保证hiredate唯一，要不会出错
+SELECT
+	deptno,ename,hiredate,sal,
+	COALESCE(CAST(sal-next_sal AS CHAR(10)),'N/A') AS diff
+FROM 
+	(
+	SELECT 
+		e.deptno,
+		e.ename,
+		e.hiredate,
+		e.sal,
+		(
+		SELECT MIN(sal) 
+		FROM emp d 
+		WHERE 
+			d.deptno = e.deptno 
+			AND 
+			d.hiredate = 
+				(
+				SELECT MIN(hiredate) 
+				FROM emp x
+				WHERE 
+					e.deptno = x.deptno 
+					AND 
+					x.hiredate > e.hiredate
+				)
+		) AS next_sal
+	FROM emp e
+	) y
+ORDER BY deptno,hiredate;
+
+-- 查一系列在时间上连续的项目
+SELECT 
+	p1.proj_id,
+	p1.proj_start,
+	p1.proj_end
+FROM project p1,project p2
+WHERE p1.proj_end = p2.proj_start;
+
+-- 定位连续区间，返回区间段
+SELECT 
+	proj_grp,
+	MIN(proj_start) AS proj_start,
+	MAX(proj_end) AS proj_end
+FROM (
+	SELECT
+		a.proj_id,
+		a.proj_start,
+		a.proj_end,
+		(
+			SELECT SUM(b.flag) 
+			FROM view_project b 
+			WHERE b.proj_id <= a.proj_id
+		) AS proj_grp
+	FROM view_project a
+	) x
+GROUP BY proj_grp;

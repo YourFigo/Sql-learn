@@ -201,3 +201,36 @@ BEGIN
 END; 
 
 CALL fun_insert();
+
+
+DROP TABLE IF EXISTS project;
+CREATE TABLE project (proj_id INTEGER,proj_start DATE,proj_end DATE);
+
+DROP PROCEDURE IF EXISTS fun_insert_date;
+CREATE PROCEDURE fun_insert_date() 
+BEGIN 
+	DECLARE i INT DEFAULT 1;
+	DECLARE date_start DATE DEFAULT ADDDATE(CURRENT_DATE,-DAYOFMONTH(CURRENT_DATE));
+
+	WHILE i<=14 DO 
+		INSERT INTO project VALUES (i, ADDDATE(date_start,i),ADDDATE(date_start,i+1));
+		SET i=i+1; 
+	END WHILE ; 
+	
+	COMMIT; 
+END; 
+CALL fun_insert_date();
+
+DROP VIEW IF EXISTS view_project;
+-- 一个区间的开头标记为flag=1，只要不是开头就标记为flag=0
+CREATE VIEW view_project
+AS
+SELECT a.*,
+	CASE WHEN (
+		SELECT b.proj_id 
+		FROM project b 
+		WHERE a.proj_start = b.proj_end
+		) IS NOT NULL 
+	THEN 0 ELSE 1
+	END AS flag
+FROM project a;
